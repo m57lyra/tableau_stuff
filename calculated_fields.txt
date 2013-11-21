@@ -1,0 +1,189 @@
+This file contains my notes on helpful, imminently reusable Tableau calculated fields.
+
+I. Basic Stuff
+
+A. Week Starting on
+
+DATETRUNC('week',[Date])
+
+B. Days Since Event 
+
+IIF([Date to Compare] > [Event Date],DATEDIFF('day',[Event Date],[Date to Compare]),NULL)
+
+C. Percent diff from this date to d-X (366, by example, as generally we report on the completed day (yesterday
+being most current)
+
+( SUM([Sales]) - LOOKUP(SUM([Sales]), -366) ) / LOOKUP(SUM([Sales]), -366)
+
+Note that this presumes the denominator carries the truth comparison. Also note that this presumes a date-based X-axis;
+Results are computed along Table(Across).
+
+
+
+
+II. Helpful Date Filters
+
+A. Is Current Year (BOOL)
+
+DATETRUNC('year',[Date])==DATETRUNC('year',TODAY())
+
+B. Not Current Week (BOOL)
+
+DATETRUNC('week',[Date])<>DATETRUNC('week',TODAY())
+
+C. Not Current Month (BOOL)
+
+DATETRUNC('month',[Date])<>DATETRUNC('month',TODAY())
+
+D. Relative Week
+
+IF
+  DATETRUNC('week',[Date])==DATETRUNC('week',TODAY()) THEN "Current Week" ELSEIF
+  DATETRUNC('week',TODAY()) - DATETRUNC('week',[Date]) == 7 THEN "Last Week" ELSEIF
+  DATETRUNC('week',TODAY()) - DATETRUNC('week',[Date]) == 14 THEN "2 Weeks Ago" ELSE
+  "Older"
+END
+
+E. Is Past  (BOOL)
+
+[Release Date] <= NOW()
+
+F. Date in Scope  (BOOL-ish)
+
+IF [Some Date] > DATEADD('day',-168,TODAY()) THEN 'True' ELSE 'False' END
+
+G. Last n-N Days (BOOL-ish)
+
+For instance, this one is last 31-60 days.
+
+IF 
+  (DATEDIFF('day', [Date], TODAY()) > 30 AND DATEDIFF('day', [Date], TODAY()) <= 60) 
+  THEN 'TRUE' 
+  ELSE 'FALSE' 
+END
+
+H. 
+
+IIF( 
+[Time Slice Parameter] = "Quarter", 
+DATETRUNC('quarter',[Date])<>DATETRUNC('quarter',TODAY()),
+TRUE
+)
+
+
+
+III. Overcoming Issues with Increasing Dimensionality, YTD
+
+A. Daily Averages
+
+Avoid any nuanced issues with multiple dimensions and filtering by skipping the AVERAGE function and create a calculated field that SUMs over the presented time horizon. For instance, if you are plotting over WEEK(Date), then SUM(ADI)/7 is the calculated field to create. Unexpected results can occur when filtered dimensions change unexpectedly.
+
+SUM([ADI])/7
+D/D-7
+Or d-N, whatevs.
+
+Here's how:
+
+SUM([ADI]) - LOOKUP(SUM([ADI]),-7)
+
+
+IV. UA Tools
+
+A. OSes from UA strings
+
+You need a reasonable OS field before you can get to the OS version (Widows is notoriously dirty), which is had by something like:
+
+IF
+STARTSWITH([product_os_platform],"Windo") THEN "Windows"
+ELSE [product_os_platform]
+END
+
+B. OSes and OS Versions from UA strings
+
+Once you have a reasonable OS, you then need to map the OS versions to something human comprehendable:
+
+IF
+lower([product_os_platform]) = 'windows_98' THEN '98' ELSEIF
+lower([product_os_platform]) = 'windows_ce' THEN 'CE' ELSEIF
+lower([product_os_platform]) = 'windows_95' THEN '95' ELSEIF
+lower([product_os_platform]) = 'windo7s_nt' THEN '7' ELSEIF
+lower([product_os_platform]) = 'windows_jt' THEN 'XP' ELSEIF
+lower([product_os_platform]) = 'windows_nt' AND [product_os_version] = '4.0' THEN 'NT' ELSEIF
+lower([product_os_platform]) = 'windows_nt' AND [product_os_version] = '5.0' THEN '2000' ELSEIF
+lower([product_os_platform]) = 'windows_nt' AND [product_os_version] = '5.1' THEN 'XP' ELSEIF
+lower([product_os_platform]) = 'windows_nt' AND [product_os_version] = '5.2' THEN 'Server 2003' ELSEIF
+lower([product_os_platform]) = 'windows_nt' AND [product_os_version] = '6.0' THEN 'Vista' ELSEIF
+lower([product_os_platform]) = 'windows_nt' AND [product_os_version] = '6.1' THEN '7' ELSEIF
+lower([product_os_platform]) = 'windows_nt' AND [product_os_version] = '6.2' THEN '8' ELSEIF
+lower([product_os_platform]) = 'windows_nt' THEN "Unknown"
+ELSE [product_os_version]
+END
+
+C. Getting persnickety with YTD calks for time chunks
+
+For instance, this is for weeks completed so far in year
+
+SUM([ADI]) / 
+AVG(
+IF [Is Current Year] THEN 
+    DATEPART('week', NOW())
+ELSE 52 
+END
+)
+
+
+
+V. Basic Business Stuff
+
+A. Non-Standardised, Basic Business Regions
+IF
+[Country] == 'AR' THEN "S America" ELSEIF
+[Country] == 'AT' THEN "EMEA" ELSEIF
+[Country] == 'AU' THEN "Asia" ELSEIF
+[Country] == 'BR' THEN "S America" ELSEIF
+[Country] == 'CA' THEN "N America" ELSEIF
+[Country] == 'CH' THEN "EMEA" ELSEIF
+[Country] == 'CN' THEN "Asia" ELSEIF
+[Country] == 'DE' THEN "EMEA" ELSEIF
+[Country] == 'ES' THEN "EMEA" ELSEIF
+[Country] == 'FR' THEN "EMEA" ELSEIF
+[Country] == 'GB' THEN "EMEA" ELSEIF
+[Country] == 'ID' THEN "Asia" ELSEIF
+[Country] == 'IN' THEN "Asia" ELSEIF
+[Country] == 'IT' THEN "EMEA" ELSEIF
+[Country] == 'JP' THEN "Asia" ELSEIF
+[Country] == 'MX' THEN "N America" ELSEIF
+[Country] == 'MY' THEN "Asia" ELSEIF
+[Country] == 'NL' THEN "EMEA" ELSEIF
+[Country] == 'PH' THEN "Asia" ELSEIF
+[Country] == 'PL' THEN "EMEA" ELSEIF
+[Country] == 'RU' THEN "EMEA" ELSEIF
+[Country] == 'SE' THEN "EMEA" ELSEIF
+[Country] == 'TR' THEN "EMEA" ELSEIF
+[Country] == 'US' THEN "N America" ELSEIF
+[Country] == 'VN' THEN "Asia" ELSEIF
+[Country] == 'TH' THEN "Asia" ELSEIF
+[Country] == 'CZ' THEN "EMEA" ELSEIF
+[Country] == 'RO' THEN "EMEA" ELSEIF
+[Country] == 'EG' THEN "EMEA" ELSEIF
+[Country] == 'HU' THEN "EMEA" ELSEIF
+[Country] == 'SA' THEN "EMEA" ELSEIF
+[Country] == 'UA' THEN "EMEA"
+ELSE
+"Unknown"
+END
+
+B. Languages
+
+Often, languages are grouped for purposes of discussion. The following maintains visibility of high-frequency languages,
+and groups like less-frequent languages to reduce dimensionality. [NOTE: Currently this is in SQL (obviously), as Tableau's calculated field
+language does not support an IN()-like clause. It could be re-cast as an if-statement to be done in Tableau, like the country to regain mapping above, if necessary.]
+
+, (case when lower(a.locale) in ('en','es','de','fr','it','pt','pl') then upper(a.locale)
+             when lower(a.locale) in ('be','bg','ru','uk','sr','lv','lt','et') then 'Cyrillic'
+             when lower(a.locale) in ('vi','th','ja','zh','ko','bo','ne','mn','km','my') then 'Asian'
+             when lower(a.locale) in ('hy','ar','ka','el','iw','tr','tk','co','fa','ps','ku') then 'Mid East / S. Euro'
+             when lower(a.locale) in ('sk','cs','cz','hu','ro','hr','sh','lv','lt','et') then 'E. Euro Other / Baltic'
+             when lower(a.locale) in ('ga','ca','eu','sq','fi','dk','se','no','fo','kl','is') then 'W. Euro Other'
+    else 'Other'
+
